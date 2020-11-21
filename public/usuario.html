@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<!-- Manejo de usuarios, llaves foráneas y archivos. -->
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Expires" content="0">
+    <meta http-equiv="Last-Modified" content="0">
+    <meta http-equiv="Cache-Control" content="no-cache, mustrevalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <title>Usuarios</title>
+    <link rel="stylesheet" href="css/estilo.css">
+    <script src="/__/firebase/7.8.1/firebase-app.js"></script>
+    <script src="/__/firebase/7.8.1/firebase-auth.js"></script>
+    <script src="/__/firebase/7.8.1/firebase-firestore.js"></script>
+    <script src="/__/firebase/7.8.1/firebase-storage.js"></script>
+    <script src="/__/firebase/init.js"></script>
+    <script src="js/util.js"></script>
+ 
+    <script type="module" src="js/herramientas-abc.js"></script>
+    <script type="module" src="js/mis-checks.js"></script>
+    <script type="module" src="js/mi-footer.js"></script>
+
+  </head>
+  <body>
+    <script>
+      function muestraUsuario(){
+
+        var user = firebase.auth().currentUser;
+        let firestore = firebase.firestore();
+
+        document.getElementById("correo").innerHTML="Correo: "+user.email;
+        document.getElementById("avatar").src=user.photoURL;
+        var userrol=document.getElementById("rol");
+
+        var docRef = firestore.collection("USUARIO").doc(user.email);
+        docRef.get().then(function (doc) {
+          if (doc.exists) {
+            userrol.innerHTML= "Rol: "+doc.data().ROL_IDS;
+          } else {
+            userrol.innerHTML= "Rol: Invitado";
+          }
+        }).catch(function (error) {
+          console.log("Error getting document:", error);
+        });
+        
+        }
+    </script>
+    <form action="javascript:guarda()">
+      <div class="usuario">
+        <img id="avatar"src="" width="50px" style="border-radius: 50%;">
+        <p id="correo"></p>
+        <p id="rol"></p>
+      </div>
+       <button class="btn btn-info" type="button" id="pasa"  onclick="regresa();" >Pasatiempo</button>
+      
+      <header>
+        <br>
+        
+        <herramientas-abc></herramientas-abc>
+        <h1>Usuarios</h1>
+      </header>
+      <!-- Muestra la imagen registrada en el servidor. -->
+      <figure id="figure">
+        <img id="img" alt="Imagen del Usuario" width="200px">
+      </figure>
+      <fieldset>
+        <legend>Cue (email)</legend>
+        <input id="cue" type="email">
+      </fieldset>
+      <fieldset>
+        <legend>Imagen</legend>
+        <input id="imagen" type="file" accept=".png,.jpg,.jpeg,.gif">
+      </fieldset>
+      <!-- Maneja una asociación a uno. -->
+      <fieldset>
+        <legend>Pasatiempo</legend>
+        <select id="pasatiempo">
+          <option>Cargando…</option>
+        </select>
+      </fieldset>
+      <!-- Maneja una asociación a muchos. -->
+      <fieldset>
+        <legend>Roles</legend>
+        <mis-checks id="roles">
+          <progress max="100">Cargando…</progress>
+        </mis-checks>
+      </fieldset>
+      <ul class="usuarios" id="lista">
+        <li><progress max="100">Cargando…</progress></li>
+      </ul>
+     
+      <mi-footer></mi-footer>
+    </form>
+    <script>
+      let id = "";
+      const auth = firebase.auth();
+      const storage = firebase.storage();
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      const firestore = firebase.firestore();
+      auth.onAuthStateChanged(
+        async usuarioAuth => {
+          if (usuarioAuth && usuarioAuth.email) {
+            muestraUsuario()
+            cargaPasatiempos();
+            cargaRoles();
+            agrega();
+            muestraLista();
+            valida();
+          } else {
+            await auth.signInWithRedirect(provider);
+
+          }
+        },
+        procesaError
+      );
+      
+
+      //////////////////////
+      function valida(){
+      const db = firebase.firestore();
+      var  aux2 = "Invitado",aux3 = "Usuario";
+      var user = firebase.auth().currentUser;
+      var name, email, photoUrl, uid, emailVerified;
+      
+      if (user != null) {
+      name = user.displayName;
+      email = user.email;
+      photoUrl = user.photoURL;
+      emailVerified = user.emailVerified;
+      uid = user.uid;  
+      }
+      console.log(email);
+      db.collection("USUARIO")
+      .get()
+      .then(function(querySnapshot) {
+          querySnapshot.forEach(function(doc) {
+            console.log(doc.data().ROL_IDS);
+            if (email==doc.id){
+// SE VALIDA SI ES UN USUARIO
+if("Invitado"==doc.data().ROL_IDS){
+      location.href="index.html";
+      
+}if("Administrador"==doc.data().ROL_IDS){
+  this.innerHTML =  /*html*/
+      ` 
+      <a href="#">Pasatiempos</a>`;
+}if("Usuario"==doc.data().ROL_IDS){
+  ocultar();
+}
+  
+// SE VALIDA SI ES UN USUARIO
+              }
+              
+          });
+      
+})
+.catch(function(error) {
+    console.log("Error getting documents: ", error);
+});
+
+     }
+     function ocultar(){
+      var elemento = document.getElementById("pasa");
+   elemento.style.display = 'none';
+} function regresa(){
+  location.href="index.html";
+}
+      
+
+      function cargaPasatiempos() {
+        firestore.collection("PASATIEMPO").onSnapshot(
+          querySnapshot => {
+            // Opción cuando el pasatiempo no está definido.
+            pasatiempo.innerHTML = /* html */
+              `<option value="">-- Sin Pasatiempo --</option>`;
+            querySnapshot.forEach(doc => {
+              const data = doc.data();
+              pasatiempo.innerHTML += /* html */
+                `<option value="${cod(doc.id)}">
+                  ${cod(data.PAS_NOMBRE)}
+                </option>`;
+            });
+          },
+          e => {
+            procesaError(e);
+            cargaPasatiempos();
+          }
+        );
+      }
+      async function cargaRoles() {
+        firestore.collection("ROL").onSnapshot(
+          querySnapshot => {
+            roles.innerHTML = "";
+            querySnapshot.forEach(doc => {
+              roles.innerHTML += /* html */
+                `<br><label>
+                  <input type="checkbox" name="roles" value="${cod(doc.id)}">
+                   <span>
+                    <strong>${cod(doc.id)}</strong><br>
+                    (${cod(doc.data().ROL_DESCR)})
+                  </span>
+                </label>
+                <br>`;
+            });
+          },
+          e => {
+            procesaError(e);
+            cargaRoles();
+          }
+        );
+      }
+      function muestraLista() {
+        firestore.collection("USUARIO").onSnapshot(
+          async querySnapshot => {
+            /* Genera un listado de Promise que descargan datos de la base de
+            * datos y espera a que todas terminen. */
+            const promesas = [];
+            // Agrega una Promise al erreglo.
+            querySnapshot.forEach(doc => promesas.push(calculaCelda(doc)));
+            // Espera a que todas las Promise terminen.
+            const celdas = await Promise.all(promesas);
+            // Llena la lista con los resultados de la consulta.
+            lista.innerHTML = "";
+            for (const celda of celdas) {
+              lista.innerHTML += celda;
+            }
+          },
+          e => {
+            procesaError(e);
+            muestraLista();
+          }
+        );
+      }
+     
+      async function calculaCelda(doc) {
+        const data = doc.data();
+        // Obtiene lo datos del id del pasatiempo.
+        const pasaDoc = data.PAS_ID
+          ? await firestore.collection("PASATIEMPO").doc(data.PAS_ID).get()
+          : null;
+        const pasaNombre = (pasaDoc && pasaDoc.exists) ?
+          pasaDoc.data().PAS_NOMBRE : "-- Sin Pasatiempo --";
+        // Obtiene lo datos de los id de los roles.
+        const rolDocs = (await Promise.all((data.ROL_IDS || [])
+          .map(async rolId =>
+            await firestore.collection("ROL").doc(rolId).get())))
+          .filter(doc => doc.exists);
+        const roles = rolDocs
+          .map(doc => `${doc.id}: ${doc.data().ROL_DESCR}`)
+          .sort();
+        // url de la imagen. Usan como nombre el id del usuario.
+        const url = await storage.ref(doc.id).getDownloadURL();
+        return (/* html */
+          `<li class="doc" onclick="muestra('${cod(doc.id)}')">
+            <figure>
+              <img src="${cod(url)}" alt="${cod(doc.id)}" width="200px">
+            </figure>
+            <div>
+              <strong>${cod(doc.id)}</strong><br>
+              ${cod(pasaNombre)}<br>
+              ${roles.map(cod).join("<br>")}
+            </div>
+          </li><br>`);
+      }
+      function agrega() {
+        agregar.disabled = true;
+        eliminar.disabled = true;
+        figure.hidden = true;
+        cue.readOnly = false;
+        cue.required = true;
+        imagen.required = true;
+        id = "";
+        cue.value = "";
+        imagen.value = "";
+        pasatiempo.value = "";
+        roles.value = [];
+      }
+      async function muestra(selección) {
+        try {
+          agregar.disabled = false;
+          eliminar.disabled = false;
+          figure.hidden = false;
+          cue.readOnly = true;
+          cue.required = false;
+          imagen.required = false;
+          let doc =
+            await firestore.collection("USUARIO").doc(selección).get();
+          if (doc.exists) {
+            id = doc.id;
+            let data = doc.data();
+            cue.value = doc.id;
+            imagen.value = "";
+            pasatiempo.value = data.PAS_ID || "";
+            roles.value = data.ROL_IDS;
+            img.src = await storage.ref(doc.id).getDownloadURL();
+          } else {
+            alert("El usuario selecionado no está registrado.");
+            agrega();
+          }
+        } catch (e) {
+          procesaError(e)
+        }
+      }
+      function leeModelo() {
+        return {
+          PAS_ID: pasatiempo.value || null,
+          ROL_IDS: roles.value
+        };
+      }
+      async function guarda() {
+        try {
+          let ref;
+          if (id) {
+            ref = firestore.collection("USUARIO").doc(id);
+          } else {
+            ref = firestore.collection("USUARIO").doc(cue.value);
+          }
+          if (fileSeleccionado(imagen)) {
+            const refStorage = storage.ref(ref.id);
+            await refStorage.put(imagen.files[0]);
+          }
+          await ref.set(leeModelo());
+          agrega();
+        } catch (e) {
+          procesaError(e);
+        }
+      }
+      /** Elimina un registro en la base de datos. */
+      async function elimina() {
+        try {
+          if (confirm("Confirma la eliminación.")) {
+            await firestore.collection("USUARIO").doc(id).delete();
+            storage.ref(id).delete();
+            agrega();
+          }
+        } catch (e) {
+          procesaError(e);
+        }
+      }
+      async function cierraSesion() {
+        try {
+          firebase.auth().signOut().then(function() {
+  // Sign-out successful.
+}).catch(function(error) {
+  // An error happened.
+});
+        } catch (e) {
+          procesaError(e);
+        }
+       
+      }
+    </script>
+  </body>
+</html>
