@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pasatiempos</title>
+    <script src="/__/firebase/7.8.1/firebase-app.js"></script>
+    <script src="/__/firebase/7.8.1/firebase-auth.js"></script>
+    <script src="/__/firebase/7.8.1/firebase-firestore.js"></script>
+    <script src="/__/firebase/init.js"></script>
+    <script src="js/util.js"></script>
+    <link rel="stylesheet" href="css/estilo.css">
+    <script type="module" src="js/mi-nav.js"></script>
+    <script type="module" src="js/herramientas-abc.js"></script>
+    <script type="module" src="js/mi-footer.js"></script>
+    <meta http-equiv="Expires" content="0">
+
+  </head>
+  <body>
+    <script>
+      function muestraUsuario(){
+
+        var user = firebase.auth().currentUser;
+        let firestore = firebase.firestore();
+
+        document.getElementById("correo").innerHTML="Correo: "+user.email;
+        document.getElementById("avatar").src=user.photoURL;
+        var userrol=document.getElementById("rol");
+
+        var docRef = firestore.collection("USUARIO").doc(user.email);
+        docRef.get().then(function (doc) {
+          if (doc.exists) {
+            userrol.innerHTML="Rol: "+ doc.data().ROL_IDS;
+          } else {
+            userrol.innerHTML= "Rol: Invitado";
+          }
+        }).catch(function (error) {
+          console.log("Error getting document:", error);
+        });
+        
+        }
+    </script>
+    <div class="usuario">
+          <img id="avatar"src="" width="50px" style="border-radius: 50%;">
+          <p id="correo"></p>
+          <p id="rol"></p>
+    </div>
+    
+      <form action="javascript:guarda()">
+        <button  type="button" id="usu"  onclick="regresa();" >Usuario</button>
+        
+    <header>
+     <br>
+         <herramientas-abc></herramientas-abc>
+         <h1>Pasatiempos</h1>
+    </header>
+       <p><input id="nombre" type="text" placeholder="Nombre" required></p>
+       <p><input id="fecha" type="date" required></p>
+       
+       <ul id="lista">
+         <li><progress max="100">Cargando…</progress></li>
+       </ul>
+      
+       <mi-footer></mi-footer>
+     </form>
+
+    <script>
+        let id = "";
+        let usuario="";
+
+      const auth = firebase.auth();
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      const firestore = firebase.firestore();
+      auth.onAuthStateChanged(
+        async usuarioAuth => {
+          if (usuarioAuth && usuarioAuth.email) {
+            usuario = usuarioAuth.email;
+            muestraUsuario();
+            agrega();
+            muestraLista();
+            valida();
+          } else {
+            await auth.signInWithRedirect(provider);
+          }
+        },
+        procesaError
+      );
+      function muestraLista() {
+        /* Pide todos los registros de la colección "PASATIEMPO" ordenador por
+         * el campo "NOMBRE" de forma ascendente. */
+        firestore.collection("PASATIEMPO").orderBy("PAS_NOMBRE")
+          .onSnapshot(
+            querySnapshot => {
+              lista.innerHTML = "";
+              querySnapshot.forEach(doc =>
+                lista.innerHTML += /* html */
+                `<li class="doc" onclick="muestra('${cod(doc.id)}')">
+                  ${cod(doc.data().PAS_NOMBRE)} ${cod(doc.data().FECHA).replace(/^(\d{4})-(\d{2})-(\d{2})$/g, '$3/$2/$1')}
+                </li>`);
+            },
+            e => {
+              procesaError(e);
+              muestraLista();
+            }
+          );
+      }
+      /** Prepara la forma para capturar un pasatiempo nuevo. */
+      function agrega() {
+        agregar.disabled = true; // Deshabilita el botón "agregar".
+        eliminar.disabled = true; // Deshabilita el botón "eliminar".
+        id = "";
+        nombre.value = "";
+        fecha.value="";
+      }
+      /** Prepara la forma para modificar el documento que corresponde al
+       * id seleccionado en el listado.
+       * @param {string} selección id del documento seleccionado en el listado.
+       */
+      async function muestra(selección) {
+        try {
+          agregar.disabled = false; // Habilita el botón "agregar".
+          eliminar.disabled = false; // Habilita el botón "eliminar".
+          /* Recupera el documento con el id "selección" en la colección
+           * "PASATIEMPO". */
+          let doc =
+            await firestore.collection("PASATIEMPO").doc(selección).get();
+          if (doc.exists) {
+            id = doc.id;
+            let data = doc.data();
+            nombre.value = data.PAS_NOMBRE || "";
+            fecha.value=data.FECHA;
+          } else {
+            alert("El pasatiempo selecionado no está registrado.");
+            agrega();
+          }
+        } catch (e) {
+          procesaError(e);
+        }
+      }
+      function leeModelo() {
+        return {
+          PAS_NOMBRE: nombre.value.trim(), FECHA: fecha.value
+        };
+      }
+      async function guarda() {
+        try {
+          if (id) {
+            // Modifica el registro en la base de datos en base al id.
+            await firestore.collection("PASATIEMPO").doc(id).set(leeModelo());
+          } else {
+            await firestore.collection("PASATIEMPO").add(leeModelo());
+          }
+          agrega();
+        } catch (e) {
+          procesaError(e);
+        }
+      }
+      /** Elimina un registro en la base de datos. */
+      async function elimina() {
+        try {
+          await firestore.collection("PASATIEMPO").doc(id).delete();
+          agrega();
+        } catch (e) {
+          procesaError(e);
+        }
+      }
+
+      async function cierraSesion() {
+        try {
+          firebase.auth().signOut().then(function() {
+  // Sign-out successful.
+}).catch(function(error) {
+  // An error happened.
+});
+        } catch (e) {
+          procesaError(e);
+        }
+       
+      }
+
+      function valida(){
+      const db = firebase.firestore();
+      var  aux2 = "Invitado",aux3 = "Usuario";
+      var user = firebase.auth().currentUser;
+      var name, email, photoUrl, uid, emailVerified;
+      
+      if (user != null) {
+      name = user.displayName;
+      email = user.email;
+      photoUrl = user.photoURL;
+      emailVerified = user.emailVerified;
+      uid = user.uid;  
+      }
+      console.log(email);
+      db.collection("USUARIO")
+      .get()
+      .then(function(querySnapshot) {
+          querySnapshot.forEach(function(doc) {
+            console.log(doc.data().ROL_IDS);
+                  if (email==doc.id){
+      // SE VALIDA SI ES UN USUARIO
+      if(aux3==doc.data().ROL_IDS){
+
+      location.href="usuarios.html";    
+      // SE VALIDA SI ES UN USUARIO
+                    } if(aux2==doc.data().ROL_IDS){
+              ocultar();
+              }      
+                    }
+                });
+      })
+      .catch(function(error) {
+          console.log("Error getting documents: ", error);
+      });
+
+     }
+	  function ocultar(){
+          var elemento = document.getElementById("usu");
+      elemento.style.display = 'none';
+    } 
+    function regresa(){
+      location.href="usuarios.html";
+    }
+
+    function procesaError(e) {
+      console.log(e);
+      alert(e.message);
+    }
+    </script>
+  </body>
+</html>
